@@ -44,14 +44,31 @@ To make the game more interesting, you can add the following features:
 #DONE!Keep track of the user’s high score (i.e., the fewest number of attempts it took to guess the number under a specific difficulty level).
 */
 
-use std::{io::Write, time};
-use rand::Rng;
+use std::{io::{self, Write}, time};
+use rand::*;
 
+fn hint(number_to_guess: u32, difficulty: &String) {
+    let mut rng = rand::rng();
+    let (between_left, between_right) = match difficulty.as_str() {
+        "Easy" => { 
+            (number_to_guess.saturating_sub(rng.random_range(1..=10)).max(1),
+            (number_to_guess + rng.random_range(1..=10)).min(100))
+        },
+        "Medium" => {
+            (number_to_guess.saturating_sub(rng.random_range(1..=25)).max(1),
+            (number_to_guess + rng.random_range(1..=25)).min(100))
+        },
+        "Hard" => {
+            (number_to_guess.saturating_sub(rng.random_range(1..=50)).max(1),
+            (number_to_guess + rng.random_range(1..=50)).min(100))
+        },
+        _ => (0, 100),
+    };
+
+    println!("The number is between {} and {}", between_left, between_right);
+}
 
 fn main() {
-    use rand;
-    use std::io::{self, Read};
-
     println!("Welcome to the Number Guessing Game!
 I'm thinking of a number between 1 and 100.
 You have 5 chances to guess the correct number.");
@@ -60,7 +77,8 @@ You have 5 chances to guess the correct number.");
     let mut difficulty: String;
     let mut input = String::new();
     let mut rng = rand::rng();
-    let mut highest_score = 10;
+    let mut highest_score: Option<u32> = None;
+    let mut hints_uses: u32;
 
     'game: loop {
         let number_to_guess = rng.random_range(1..=100);
@@ -91,14 +109,17 @@ You have 5 chances to guess the correct number.");
             "1" => {
                 chances = 10;
                 difficulty = "Easy".to_string();
+                hints_uses = 3;
             },
             "2" => {
                 chances = 5;
                 difficulty = "Medium".to_string();
+                hints_uses = 2;
             },
             "3" => {
                 chances = 3;
                 difficulty = "Hard".to_string();
+                hints_uses = 1;
             },
             _ => {
                 println!("Invalid choice, try again!");
@@ -112,11 +133,10 @@ Let's start the game!", difficulty);
         let elapsed_time = time::Instant::now();
 
         for chance in 1..=chances {
-            println!("n: {}", number_to_guess);
             loop {
                 input.clear();
 
-                print!("\nEnter your guess: ");
+                print!("\nEnter your guess or 'H' for a hint({}/3 hints to use): ", hints_uses);
                 io::stdout().flush().expect("erro no stdout");
                 io::stdin()
                 .read_line(&mut input)
@@ -124,11 +144,18 @@ Let's start the game!", difficulty);
 
                 input = input.trim().to_string();
 
-                if input.parse::<u32>().is_err() {
-                    println!("Please just enter numbers!");
+                if input.parse::<u32>().is_ok() {
+                    break;
+                }
+                else if input.to_ascii_uppercase() == "H" && hints_uses > 0 {
+                    hint(number_to_guess, &difficulty);
+                    hints_uses -= 1;
+                }
+                else if hints_uses > 0 {
+                    println!("Please just enter numbers or 'H' for a hint!");
                 }
                 else {
-                    break;
+                    println!("Please just enter numbers!");
                 }
             }
 
@@ -136,8 +163,8 @@ Let's start the game!", difficulty);
 
             if number_to_try == number_to_guess {
                 println!("\nCongratulations! You guessed the correct number in {} attempts.", chance);
-                if highest_score > chance {
-                    highest_score = chance;
+                if highest_score > Some(chance) || highest_score.is_none() {
+                    highest_score = Some(chance);
                 }
                 break;
             }
@@ -155,7 +182,13 @@ Let's start the game!", difficulty);
 
         let elapsed_seconds = elapsed_time.elapsed().as_secs();
 
-        println!("Highest Score (attempts to win): {}", highest_score);
+        println!(
+            "Highest Score (attempts to win): {}",
+            match highest_score {
+                Some(score) => score.to_string(),
+                None => "None".to_string(),
+            }
+        );
         print!("Elapsed time: ");
         if elapsed_seconds >= 60 && elapsed_seconds <= 3600 {
                 println!("{} minutes and {} seconds.", elapsed_seconds/60, elapsed_seconds%60)
